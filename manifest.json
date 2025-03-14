@@ -1,0 +1,15 @@
+{
+    "manifest_version": 3, 
+    "version": "1.0", 
+    "name": "Vocabulary booklet",
+    "description": "A Chrome extension that translates words and saves them as a vocabulary book.",
+    "background" : {
+        "service_worker": "src/js/background.js"
+    },
+    "action": {
+        "default_icon": "src/images/booklet.webp"
+    },
+    "permissions": ["windows"],
+    "host_permissions": ["https://api.mymemory.translated.net/*"]
+
+}
