@@ -4,37 +4,67 @@
 const vocabularyInput = document.getElementById("vocabulary-input");
 const btnSaveVocabulary = document.getElementById("btn-save-vocabulary");
 const btnDeleteVocabulary = document.getElementById("btn-delete-vocabulary");
-const vocabTable = document.getElementById("vocab-table-body");
+const vocabTableBody = document.getElementById("vocab-table-body");
 
-// === Funktionen implementieren ===
+// === Globale Variable für Vokabelpaare ===
+// Alle Vokabelpaare werden als Array von Objekten gespeichert, z. B. {original: 'word', translation: 'Wort'}
+let vocabList = [];
 
-// Fügt eine neue Zeile zur Vokabletabelle hinzu
-const addVocabRow = function(translated, original) {
-    let tableRow = `
+// === Funktionen ===
+
+/**
+ * 
+ * @param {string} originalWord - Das eingegebene Wort.
+ * @param {string} translatedWord - Die Übersetzung des Wortes.
+ * @returns {string}  -HTML-String für die Tabellenzeile.
+ */
+const createVocabRow = function(originalWord, translatedWord) {
+      return `
         <tr>
-            <td>${original}</td>
-            <td>${translated}</td>
+            <td>${originalWord}</td>
+            <td>${translatedWord}</td>
         </tr>
     `;
-    return tableRow;
 };
 
-// Lädt alle gespeicherten Vokabelpaare aus dem localStorage
+/**
+ * Rendert die Vokabeltabelle anhand des vocabList Arrays.
+ */
+const renderVocabulary = function() {
+    let tableContent = "";
+    vocabList.forEach(pair => {
+        tableContent += createVocabRow(pair.originalWord, pair.translatedWord)
+    });
+    vocabTableBody.innerHTML = tableContent;
+};
+
+/**
+ * 
+ * Lädt die Vokabelpaare aus dem localStorage.
+ * Wenn keine Daten voranden sind, wird ein leeres Array verwendet.
+ */
 const loadVocabulary = function() {
-    vocabTable.innerHTML = "";
-    let tableDOM = "";
-    for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        const value = localStorage.getItem(key);
-
-        tableDOM += addVocabRow(key, value);
+    const storedVocab = localStorage.getItem("vocabList");
+    if(storedVocab) {
+        vocabList = JSON.parse(storedVocab);
     }
-    vocabTable.innerHTML = tableDOM;
+    renderVocabulary();
 };
 
+/**
+ * Speichert das aktuelle vocabList Array im localStorage.
+ */
+const saveVocabularyToStorage = function() {
+    localStorage.setItem("vocabList", JSON.stringify(vocabList));
+};
+
+/**
+ * Liest das eingegebene Wort, validiert es und gibt es zurück.
+ * 
+ * @returns {string|null} - Das bereinigte Wort oder null, wenn keine Eingabe erfolgte.
+ */
 const getInputWord = function(){
-    let inputWord = vocabularyInput.value.trim();
-    inputWord = inputWord.split(' ')[0];
+    const inputWord = vocabularyInput.value.trim().split(' ')[0];
     if (!inputWord) {
         alert("Please enter a word!");
         return null;
@@ -42,16 +72,33 @@ const getInputWord = function(){
     return inputWord;
 };
 
+
+/**
+ * Ermittelt die Ziel-Sprache anhand der Browsersprache.
+ * 
+ * @returns {string} - Der Sprachcode (z. B. "de").
+ */
 const getTargetLang = function(){
-// Ziel-Sprache ermitteln (. B. "en" aus "en-US")
     return navigator.language.split('-')[0];
 };
 
+
+/**
+ * Gibt den Quellprachcode zurück.
+ * 
+ * @returns {string} - Der Quellsprachcode (z. B. "en").
+ */
 const getSourceLang = function(){
     return 'en';
 };
 
-const requestAPI = function(inputWord, targetLang) {
+
+/**
+ * Führt die API-Anfrage zur Übersetzung des eingegebenen Wortes durch.
+ * @param {string} inputWord  - Das Wort, das übersetzt werden soll.
+ * @param {string} targetLang - Die Zielsprache.
+ */
+const fetchTranslation  = function(inputWord, targetLang) {
     const sourceLang = getSourceLang();
     // MyMemory-API-Endpunkt mit Parametern
   const apiUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(inputWord)}&langpair=${sourceLang}|${targetLang}`;
@@ -63,14 +110,15 @@ const requestAPI = function(inputWord, targetLang) {
       if (data.responseStatus === 200) {
         const translatedText = data.responseData.translatedText;
         
-        // Sonderfälle bereinigen (MyMemory fügt manchmal "MYMEMORY WARNING:..." hinzu)
-        const cleanText = translatedText.replace(/MYMEMORY WARNING:.*/, "").trim();
+        // Entferne mögliche Warnhinweise aus der Übersetzung
+        const cleanTranslation = translatedText.replace(/MYMEMORY WARNING:.*/, "").trim();
         
-        // Speichern im localStorage
-        localStorage.setItem(cleanText, inputWord);
+        // Füge das neue Vokabelpaar der Liste hinzu
+        vocabList.push({originalWord: inputWord, translatedWord: cleanTranslation});
+        saveVocabularyToStorage();
+        renderVocabulary();
         
-        // Tabelle aktualisieren
-        vocabTable.innerHTML += addVocabRow(cleanText, inputWord);
+        // Eingabefeld zurücksetzen
         vocabularyInput.value = ""; // Input leeren
       } else {
         console.error("MyMemory Error:", data.responseDetails);
@@ -81,20 +129,29 @@ const requestAPI = function(inputWord, targetLang) {
     });
 };
 
-const saveVocabulary = function() {
+/**
+ * Event-Handler zum Speichern eines neuen Vokabelpaares.
+ */
+const saveVocabularyHandler = function() {
     const inputWord = getInputWord();
+    if(!inputWord) return;
+
     const targetLang = getTargetLang();
-    requestAPI(inputWord, targetLang);
+    fetchTranslation (inputWord, targetLang);
 };
 
-const deleteVocabulary = function(){
-    localStorage.clear();
-    vocabTable.innerHTML = "";
+/**
+ * Event-Handler zum Loschen aller gespeicherten Vokabelpaare.
+ */
+const deleteVocabularyHandler = function(){
+    vocabList = [];
+    saveVocabularyToStorage();
+    renderVocabulary();
 }
 
-// === Allgemeine Logik implementieren ===
+// === Initial Logik ===
 loadVocabulary();
 
 // === Event-Listener binden ===
-btnSaveVocabulary.addEventListener('click', saveVocabulary);
-btnDeleteVocabulary.addEventListener('dblclick', deleteVocabulary);
+btnSaveVocabulary.addEventListener('click', saveVocabularyHandler);
+btnDeleteVocabulary.addEventListener('dblclick', deleteVocabularyHandler);
